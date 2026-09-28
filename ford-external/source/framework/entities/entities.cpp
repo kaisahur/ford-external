@@ -1,10 +1,13 @@
 #include "entities.hpp"
 
-void cache::update()
+void cache::update( )
 {
-    std::vector< entity_t > temp;
+    auto players = game->players.get_children( );
 
-    for ( auto& player : game->players.get_children( ) )
+    std::vector< entity_t > temp;
+    temp.reserve( players.size( ) );
+
+    for ( auto& player : players )
     {
         auto model_instance = instance_t( g_memory.read< std::uint64_t >( player.address + Offsets::Player::ModelInstance ) );
         if ( !model_instance.address )
@@ -30,6 +33,7 @@ void cache::update()
 
         entity.humanoid = model_instance.find_first_child_of_class( "Humanoid" ).address;
         entity.name = player.get_name( );
+        entity.self = player.address == game->local_player.address;
         temp.push_back( entity );
     }
 
@@ -55,12 +59,12 @@ void cache::tick( )
         .detach( );
 }
 
-std::vector<entity_t> cache::get_snapshot( )
+std::vector< entity_t > cache::get_snapshot( )
 {
     std::vector< entity_t > snapshot;
     {
         std::shared_lock lock( mtx );
-        snapshot = entities; 
+        snapshot = entities;
     }
     return snapshot;
 }

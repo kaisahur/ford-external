@@ -2,37 +2,26 @@
 
 #include <imgui.h>
 
+#include <algorithm>
 #include <cmath>
-
 #include <framework/entities/entities.hpp>
 #include <framework/roblox/visual_engine.hpp>
 
-bool visuals_t::calculate_bounds( visual_engine_t& engine, entity_t& entity, float& left, float& top, float& right, float& bottom )
+#undef max
+#undef min
+
+bool visuals_t::calculate_bounds( visual_engine_t& engine, entity_t& entity, ImRect& bb )
 {
     bool any = false;
-    left = 0.f;
-    top = 0.f;
-    right = 0.f;
-    bottom = 0.f;
 
-    for ( auto& bone : entity.bones )
+    for ( const auto& bone : entity.bones )
     {
-        const std::string& name = bone.key;
-        if ( name != "Head" && name != "Torso" && name != "UpperTorso" && name != "LowerTorso" && name != "Left Arm" && name != "Right Arm" &&
-             name != "Left Leg" && name != "Right Leg" && name != "LeftUpperArm" && name != "LeftLowerArm" && name != "LeftHand" &&
-             name != "RightUpperArm" && name != "RightLowerArm" && name != "RightHand" && name != "LeftUpperLeg" && name != "LeftLowerLeg" &&
-             name != "LeftFoot" && name != "RightUpperLeg" && name != "RightLowerLeg" && name != "RightFoot" )
-            continue;
-
         if ( !bone.primitive )
             continue;
 
         auto prim = g_memory.read< primitive_t >( bone.primitive + Offsets::Primitive::Rotation );
-        if ( !( prim.size.x > 0.05f && prim.size.x < 25.f ) || !( prim.size.y > 0.05f && prim.size.y < 25.f ) ||
-             !( prim.size.z > 0.05f && prim.size.z < 25.f ) )
-            continue;
 
-        vector3 half = prim.size * 0.5f;
+        vector3 half = prim.size / 2.f;
         vector2 corners[ 8 ];
         bool valid = true;
         int n = 0;
@@ -47,10 +36,10 @@ bool visuals_t::calculate_bounds( visual_engine_t& engine, entity_t& entity, flo
                     const float ly = half.y * y;
                     const float lz = half.z * z;
 
-                    vector3 world{
-                        prim.position.x + prim.rotation.m[ 0 ][ 0 ] * lx + prim.rotation.m[ 0 ][ 1 ] * ly + prim.rotation.m[ 0 ][ 2 ] * lz,
-                        prim.position.y + prim.rotation.m[ 1 ][ 0 ] * lx + prim.rotation.m[ 1 ][ 1 ] * ly + prim.rotation.m[ 1 ][ 2 ] * lz,
-                        prim.position.z + prim.rotation.m[ 2 ][ 0 ] * lx + prim.rotation.m[ 2 ][ 1 ] * ly + prim.rotation.m[ 2 ][ 2 ] * lz };
+                    vector3 world{ prim.position.x + prim.rotation.m[ 0 ][ 0 ] * lx + prim.rotation.m[ 0 ][ 1 ] * ly + prim.rotation.m[ 0 ][ 2 ] * lz,
+                                   prim.position.y + prim.rotation.m[ 1 ][ 0 ] * lx + prim.rotation.m[ 1 ][ 1 ] * ly + prim.rotation.m[ 1 ][ 2 ] * lz,
+                                   prim.position.z + prim.rotation.m[ 2 ][ 0 ] * lx + prim.rotation.m[ 2 ][ 1 ] * ly +
+                                       prim.rotation.m[ 2 ][ 2 ] * lz };
 
                     if ( !engine.world_to_screen( world, corners[ n ] ) )
                     {
@@ -66,31 +55,21 @@ bool visuals_t::calculate_bounds( visual_engine_t& engine, entity_t& entity, flo
         if ( !valid )
             continue;
 
+        any = true;
+
         for ( int i = 0; i < 8; i++ )
         {
-            const float sx = corners[ i ].x;
-            const float sy = corners[ i ].y;
+            auto& corner = corners[ i ];
 
-            if ( !any )
-            {
-                left = right = sx;
-                top = bottom = sy;
-                any = true;
-                continue;
-            }
+            bb.Min.x = std::min( bb.Min.x, corner.x );
+            bb.Min.y = std::min( bb.Min.y, corner.y );
 
-            if ( sx < left )
-                left = sx;
-            if ( sy < top )
-                top = sy;
-            if ( sx > right )
-                right = sx;
-            if ( sy > bottom )
-                bottom = sy;
+            bb.Max.x = std::max( bb.Max.x, corner.x );
+            bb.Max.y = std::max( bb.Max.y, corner.y );
         }
     }
 
-    return any && right > left && bottom > top;
+    return any && bb.Max.x > bb.Min.x && bb.Max.y > bb.Min.y;
 }
 
 void visuals_t::render( )
@@ -109,31 +88,27 @@ void visuals_t::render( )
         return;
 
     auto draw = ImGui::GetBackgroundDrawList( );
-    auto players = cache::get_snapshot( );
 
-    for ( auto& entity : players )
+    for ( auto& entity : cache::get_snapshot( ) )
     {
-        float left = 0.f;
-        float top = 0.f;
-        float right = 0.f;
-        float bottom = 0.f;
-
-        if ( !calculate_bounds( engine, entity, left, top, right, bottom ) )
+        if ( !visuals->self && entity.self )
             continue;
 
-        const float x1 = std::floor( left );
-        const float y1 = std::floor( top );
-        const float x2 = std::floor( right );
-        const float y2 = std::floor( bottom );
+        ImRect bb{ FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX };
 
-        const auto flags = draw->Flags;
-        draw->Flags &= ~( ImDrawListFlags_AntiAliasedLines | ImDrawListFlags_AntiAliasedFill );
+        if ( !calculate_bounds( engine, entity, bb ) )
+            continue;
+
+        bb.Min.x = std::floorf( bb.Min.x );
+        bb.Min.y = std::floorf( bb.Min.y );
+
+        bb.Max.x = std::floorf( bb.Max.x );
+        bb.Max.y = std::floorf( bb.Max.y );
 
         if ( visuals->boxes )
         {
-            draw->AddRect( ImVec2( x1 - 1.f, y1 - 1.f ), ImVec2( x2 + 1.f, y2 + 1.f ), IM_COL32( 0, 0, 0, 255 ) );
-            draw->AddRect( ImVec2( x1, y1 ), ImVec2( x2, y2 ), IM_COL32( 255, 255, 255, 255 ) );
-            draw->AddRect( ImVec2( x1 + 1.f, y1 + 1.f ), ImVec2( x2 - 1.f, y2 - 1.f ), IM_COL32( 0, 0, 0, 255 ) );
+            draw->AddRect( bb.Min, bb.Max, IM_COL32( 0, 0, 0, 255 ), 0.f, 0, 3.f );
+            draw->AddRect( bb.Min, bb.Max, IM_COL32( 255, 255, 255, 255 ), 0.f, 0, 1.f );
         }
 
         if ( visuals->health_bar && entity.humanoid )
@@ -143,20 +118,16 @@ void visuals_t::render( )
 
             if ( max_health > 0.f )
             {
-                float ratio = health / max_health;
-                if ( ratio < 0.f )
-                    ratio = 0.f;
-                if ( ratio > 1.f )
-                    ratio = 1.f;
+                float ratio = std::clamp( health / max_health, 0.f, 1.f );
+                const float filled = std::floor( ( bb.Max.y - bb.Min.y ) * ratio );
 
-                const float filled = std::floor( ( y2 - y1 ) * ratio );
-
-                draw->AddRect( ImVec2( x1 - 6.f, y1 - 1.f ), ImVec2( x1 - 3.f, y2 + 1.f ), IM_COL32( 0, 0, 0, 255 ) );
+                draw->AddRect( ImVec2( bb.Min.x - 5.f, bb.Min.y - 1.f ), ImVec2( bb.Min.x - 2.f, bb.Max.y + 1.f ), IM_COL32( 0, 0, 0, 255 ) );
                 if ( filled >= 1.f )
-                    draw->AddRectFilled( ImVec2( x1 - 5.f, y2 - filled ), ImVec2( x1 - 4.f, y2 ), IM_COL32( 255, 255, 255, 255 ) );
+                {
+                    draw->AddRectFilled(
+                        ImVec2( bb.Min.x - 4.f, bb.Max.y - filled ), ImVec2( bb.Min.x - 3.f, bb.Max.y ), IM_COL32( 255, 255, 255, 255 ) );
+                }
             }
         }
-
-        draw->Flags = flags;
     }
 }

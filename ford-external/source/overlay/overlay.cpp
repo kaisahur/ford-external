@@ -257,6 +257,7 @@ bool overlay_t::begin_frame( )
         ImGui::SetNextWindowSize( ImVec2( 300.f, 200.f ), ImGuiCond_FirstUseEver );
         ImGui::Begin( "menu", nullptr, ImGuiWindowFlags_NoCollapse );
         ImGui::Checkbox( "VSync", &vsync );
+        ImGui::Checkbox( "self", &visuals->self );
         ImGui::Checkbox( "boxes", &visuals->boxes );
         ImGui::Checkbox( "health bar", &visuals->health_bar );
         ImGui::End( );

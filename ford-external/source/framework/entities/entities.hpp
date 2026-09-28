@@ -14,6 +14,7 @@ struct bone_t
 
 struct entity_t
 {
+    bool self;
     std::string name;
     std::uint64_t humanoid;
     std::vector< bone_t > bones;

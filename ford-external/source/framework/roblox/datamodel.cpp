@@ -52,18 +52,28 @@ void datamodel_t::tick( )
         {
             while ( true )
             {
+                auto pid = get_pid_by_name( "RobloxPlayerBeta.exe" );
+                if ( !pid )
+                    continue;
+
+                g_memory.pid = pid;
+                g_memory.handle = OpenProcess( PROCESS_ALL_ACCESS, FALSE, pid );
+                g_memory.base = get_image_base_from_pid( pid );
+
+                if ( !g_memory.handle || !g_memory.base )
+                    continue;
+
                 auto current = datamodel_t::get( );
 
                 if ( current.address && ( !game->players.address || current.address != game->last_datamodel ) )
                 {
                     game->datamodel = current;
 
-                    auto players = current.find_first_child( "Players" );
-                    if ( !players.address )
-                        players = current.find_first_child_of_class( "Players" );
+                    auto players = current.find_first_child_of_class( "Players" );
 
                     if ( players.address )
                     {
+                        game->local_player = instance_t( g_memory.read< std::uint64_t >( players.address + Offsets::Player::LocalPlayer ) );
                         game->players = players;
                         game->last_datamodel = current.address;
                     }
