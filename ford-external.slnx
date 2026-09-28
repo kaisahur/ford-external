@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="ford-external/ford-external.vcxproj" Id="5ec3d6b1-ed8a-40f3-8317-3c0747fef411" />
+</Solution>
