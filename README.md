@@ -10,7 +10,7 @@ About
 
 ford-external is a small external Roblox project focused on keeping things simple, clean, and fast.
 
-The overlay uses DirectComposition rather than the traditional Present chain, providing a lightweight rendering path with low latency.
+The overlay renders through a standard DXGI swapchain, but instead of relying on DWM’s layered‑window composition, it uses DirectComposition. This provides a modern GPU‑accelerated composition path, reducing latency and avoiding the traditional external‑overlay bottlenecks associated with DWM.
 
 
 
